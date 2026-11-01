@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LondonTap</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{--ink:#0e1a2b;--paper:#f3f1ec;--red:#e1251b;--blue:#1b6fd1;--green:#2f9e5b}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Georgia,"Times New Roman",serif;background:var(--ink);color:var(--paper)}
+#map{position:absolute;inset:0;background:var(--ink)}
+.bar{position:absolute;z-index:1000;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top,0px) + 10px) 12px 10px;display:flex;gap:12px;align-items:center;justify-content:space-between;background:linear-gradient(var(--ink),rgba(14,26,43,.85));pointer-events:none}
+.bar b{font-size:1.35rem;line-height:1.15}
+.bar small{display:block;font-size:.8rem;opacity:.7;font-family:system-ui,sans-serif}
+.score{font:600 1.1rem system-ui,sans-serif;white-space:nowrap}
+.dock{position:absolute;z-index:1000;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);display:flex;flex-direction:column;gap:8px;align-items:center}
+#msg{background:var(--paper);color:var(--ink);padding:8px 14px;border-radius:8px;font:600 1rem system-ui,sans-serif;display:none}
+button{font:600 1rem system-ui,sans-serif;border:0;border-radius:8px;padding:13px 26px;background:var(--red);color:#fff;cursor:pointer;min-width:180px}
+button:disabled{opacity:.4;cursor:default}
+button.alt{background:var(--paper);color:var(--ink)}
+#end{position:absolute;z-index:2000;inset:0;background:rgba(14,26,43,.94);display:none;align-items:center;justify-content:center;padding:20px}
+#end>div{max-width:380px;width:100%;text-align:center}
+#end h1{margin:0;font-size:3.4rem}
+#end p{font:1rem system-ui,sans-serif;opacity:.8;margin:4px 0 14px}
+#rows{text-align:left;font:.95rem system-ui,sans-serif;margin-bottom:16px}
+#rows div{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(243,241,236,.18)}
+#end button{display:block;margin:8px auto}
+.leaflet-container{cursor:crosshair}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style></head>
+<body>
+<div id="map"></div>
+<div class="bar"><div><small id="rd">Round 1 of 5</small><b id="q"></b></div><div class="score" id="sc">0</div></div>
+<div class="dock"><div id="msg"></div><button id="go" disabled>Tap the map to guess</button></div>
+<div id="end"><div>
+<h1 id="tot"></h1><p id="sub"></p><div id="rows"></div>
+<button id="share">Copy result</button><button class="alt" id="prac">Practice with 5 random places</button>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+const PLACES=[["Tower Bridge",51.5055,-0.0754],["Tower of London",51.5081,-0.0759],["Big Ben",51.5007,-0.1246],["London Eye",51.5033,-0.1196],["Buckingham Palace",51.5014,-0.1419],["St Paul's Cathedral",51.5138,-0.0984],["The Shard",51.5045,-0.0865],["Westminster Abbey",51.4993,-0.1273],["Trafalgar Square",51.5080,-0.1281],["Piccadilly Circus",51.5100,-0.1347],["British Museum",51.5194,-0.1270],["The Serpentine",51.5047,-0.1657],["Marble Arch",51.5131,-0.1589],["Wembley Stadium",51.5560,-0.2796],["Tate Modern",51.5076,-0.0994],["Millennium Bridge",51.5095,-0.0985],["Shakespeare's Globe",51.5081,-0.0972],["Camden Lock",51.5415,-0.1465],["King's Cross Station",51.5309,-0.1233],["St Pancras International",51.5316,-0.1263],["Royal Albert Hall",51.5010,-0.1774],["Natural History Museum",51.4967,-0.1764],["Kensington Palace",51.5058,-0.1877],["Harrods",51.4994,-0.1633],["Battersea Power Station",51.4818,-0.1445],["Royal Observatory Greenwich",51.4769,-0.0005],["Cutty Sark",51.4828,-0.0096],["The O2",51.5030,0.0032],["One Canada Square",51.5049,-0.0195],["London Stadium",51.5387,-0.0166],["ArcelorMittal Orbit",51.5385,-0.0132],["Crystal Palace Park",51.4225,-0.0700],["Alexandra Palace",51.5942,-0.1303],["Hampton Court Palace",51.4036,-0.3377],["Kew Gardens Palm House",51.4833,-0.2955],["Pen Ponds, Richmond Park",51.4440,-0.2672],["Wimbledon Centre Court",51.4344,-0.2143],["Twickenham Stadium",51.4560,-0.3415],["Heathrow Terminal 5",51.4723,-0.4885],["Emirates Stadium",51.5549,-0.1084],["Stamford Bridge",51.4817,-0.1910],["Craven Cottage",51.4749,-0.2217],["Lord's Cricket Ground",51.5294,-0.1727],["The Oval",51.4837,-0.1150],["Regent's Park",51.5290,-0.1550],["London Zoo",51.5353,-0.1535],["Primrose Hill",51.5393,-0.1608],["Parliament Hill",51.5600,-0.1590],["Highgate Cemetery",51.5671,-0.1475],["Brick Lane",51.5215,-0.0719],["Borough Market",51.5055,-0.0910],["Covent Garden Piazza",51.5120,-0.1224],["Leicester Square",51.5103,-0.1282],["Oxford Circus",51.5152,-0.1419],["Liverpool Street Station",51.5178,-0.0823],["The Gherkin",51.5145,-0.0803],["Barbican Centre",51.5200,-0.0937],["Smithfield Market",51.5202,-0.1020],["Victoria Station",51.4952,-0.1441],["Waterloo Station",51.5031,-0.1132],["Paddington Station",51.5154,-0.1755],["Euston Station",51.5282,-0.1337],["Clapham Common",51.4617,-0.1496],["Brixton Station",51.4627,-0.1145],["Peckham Rye Station",51.4700,-0.0694],["Dulwich Picture Gallery",51.4547,-0.0856],["Victoria Park",51.5362,-0.0400],["Broadway Market",51.5368,-0.0612],["Columbia Road",51.5292,-0.0707],["Little Venice",51.5217,-0.1833],["Portobello Road",51.5152,-0.2050],["Westfield Stratford",51.5435,-0.0063],["Thames Barrier",51.4965,0.0368],["Kensal Green Cemetery",51.5272,-0.2257],["Wormwood Scrubs",51.5160,-0.2380],["East Croydon Station",51.3753,-0.0928],["Harrow-on-the-Hill Station",51.5791,-0.3366],["Kingston Station",51.4129,-0.3011],["Richmond Station",51.4633,-0.3015],["Cleopatra's Needle",51.5084,-0.1205],["Albert Bridge",51.4820,-0.1675],["Battersea Park Peace Pagoda",51.4786,-0.1583],["Southbank Centre",51.5057,-0.1167],["Somerset House",51.5110,-0.1172],["Lambeth Palace",51.4953,-0.1197],["Imperial War Museum",51.4958,-0.1086],["Brompton Cemetery",51.4852,-0.1913],["Lee Valley VeloPark",51.5498,-0.0166],["Eltham Palace",51.4515,0.0508],["Morden Hall Park",51.4044,-0.1936],["Ham House",51.4437,-0.3070],["Syon House",51.4780,-0.3256],["Chiswick House",51.4880,-0.2674],["Osterley Park",51.4813,-0.3527]];
+
+const $=id=>document.getElementById(id);
+const today=new Date().toLocaleDateString('en-CA');
+const KEY='londontap-'+today;
+let mode='daily',rounds=[],i=0,res=[],guess=null,locked=false,gm=null;
+
+function rng(s){let h=1779033703^s.length;for(let k=0;k<s.length;k++){h=Math.imul(h^s.charCodeAt(k),3432918353);h=h<<13|h>>>19}let a=h>>>0;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function pick(seed){const r=rng(seed),a=PLACES.slice();for(let k=a.length-1;k>0;k--){const j=Math.floor(r()*(k+1));[a[k],a[j]]=[a[j],a[k]]}return a.slice(0,5)}
+function km(a,b){const R=6371,p=Math.PI/180,dl=(b.lat-a.lat)*p,dg=(b.lng-a.lng)*p;const x=Math.sin(dl/2)**2+Math.cos(a.lat*p)*Math.cos(b.lat*p)*Math.sin(dg/2)**2;return 2*R*Math.asin(Math.sqrt(x))}
+const pts=d=>Math.round(100*Math.exp(-Math.max(0,d-.15)/4));
+const fmt=d=>d<1?Math.round(d*1000)+' m':d.toFixed(1)+' km';
+
+const map=L.map('map',{minZoom:10,maxZoom:19,maxBounds:[[51.18,-0.70],[51.80,0.50]],maxBoundsViscosity:1,zoomControl:false,attributionControl:true}).setView([51.507,-0.11],10);
+L.control.zoom({position:'topright'}).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxNativeZoom:18,maxZoom:19,attribution:'Imagery &copy; Esri, Maxar, Earthstar Geographics'}).addTo(map);
+// Greater London outline (rough) so the playable area is clear
+L.rectangle([[51.286,-0.510],[51.692,0.334]],{color:'#f3f1ec',weight:1,opacity:.35,fill:false,dashArray:'4 6',interactive:false}).addTo(map);
+const layer=L.layerGroup().addTo(map);
+
+function dot(ll,c){return L.circleMarker(ll,{radius:9,color:'#fff',weight:3,fillColor:c,fillOpacity:1})}
+function total(){return res.reduce((s,r)=>s+r.p,0)}
+
+function show(){
+  layer.clearLayers();guess=null;locked=false;
+  $('rd').textContent='Round '+(i+1)+' of 5';$('q').textContent=rounds[i][0];$('sc').textContent=total();
+  $('msg').style.display='none';$('go').disabled=true;$('go').textContent='Tap the map to guess';
+  map.flyTo([51.507,-0.11],10,{duration:.6});
+}
+map.on('click',e=>{
+  if(locked||!rounds.length)return;
+  guess=e.latlng;layer.clearLayers();dot(guess,'#1b6fd1').addTo(layer);
+  $('go').disabled=false;$('go').textContent='Lock in guess';
+});
+$('go').onclick=()=>{
+  if(!locked){
+    if(!guess)return;
+    locked=true;
+    const [n,la,lo]=rounds[i],t=L.latLng(la,lo),d=km(guess,t),p=pts(d);
+    res.push({n,d,p});
+    dot(t,'#2f9e5b').addTo(layer);
+    L.polyline([guess,t],{color:'#fff',weight:2,dashArray:'6 6'}).addTo(layer);
+    map.fitBounds(L.latLngBounds([guess,t]).pad(.5),{maxZoom:17});
+    $('sc').textContent=total();
+    $('msg').textContent=fmt(d)+' away · +'+p;$('msg').style.display='block';
+    $('go').textContent=i<4?'Next place':'See results';
+  }else if(i<4){i++;show()}else finish();
+};
+function finish(){
+  if(mode==='daily'){try{localStorage.setItem(KEY,JSON.stringify(res))}catch(e){}}
+  $('tot').textContent=total()+' / 500';
+  $('sub').textContent=mode==='daily'?'Daily London · '+today:'Practice round';
+  $('rows').innerHTML=res.map(r=>'<div><span>'+r.n+'</span><span>'+fmt(r.d)+' · '+r.p+'</span></div>').join('');
+  $('prac').style.display='block';
+  $('end').style.display='flex';
+}
+const sq=p=>p>=80?'🟩':p>=50?'🟨':p>=20?'🟧':'🟥';
+$('share').onclick=async()=>{
+  const t='LondonTap '+(mode==='daily'?today:'practice')+'\n'+total()+'/500\n'+res.map(r=>sq(r.p)).join('');
+  try{await navigator.clipboard.writeText(t);$('share').textContent='Copied'}catch(e){prompt('Copy your result:',t)}
+};
+$('prac').onclick=()=>{mode='practice';start(pick(String(Math.random())))};
+function start(r){rounds=r;i=0;res=[];$('end').style.display='none';$('share').textContent='Copy result';show()}
+
+// Boot: restore today's finished game, otherwise start it
+let saved=null;try{saved=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){}
+rounds=pick(today);
+if(saved&&saved.length===5){res=saved;i=4;finish()}else start(rounds);
+</script>
+</body></html>
